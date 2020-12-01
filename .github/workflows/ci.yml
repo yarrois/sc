@@ -14,7 +14,7 @@ on:
 jobs:
 
   build:
-    runs-on: [omen]
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: check out repository
         uses: actions/checkout@v2
@@ -26,7 +26,7 @@ jobs:
         run: ansible-playbook site.yaml
 
   test:
-    runs-on: [omen]
+    runs-on: [self-hosted, Linux, X64]
     needs: [build]
     steps:     
       - name: curl the loadbalancer for database output
