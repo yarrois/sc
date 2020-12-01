@@ -123,6 +123,7 @@
       - '{{ wb1_mgmt }} webserver1'
       - '{{ wb2_mgmt }} webserver2'
       - '{{ db_mgmt }} database'
+      - '{{ lb_red }} ucpe.swisscom.com'
 
   handlers:
   - name: restart_network 
