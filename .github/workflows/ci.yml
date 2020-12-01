@@ -14,6 +14,7 @@ on:
 jobs:
 
   build:
+    runs-on: self-hosted
     steps:
       - name: check out repository
         uses: actions/checkout@v2
@@ -22,6 +23,7 @@ jobs:
         run: ansible-playbook site.yaml
 
   test:
+    runs-on: self-hosted
     needs: [build]
     steps:     
       - name: curl the loadbalancer for database output
