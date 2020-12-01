@@ -14,16 +14,19 @@ on:
 jobs:
 
   build:
-    runs-on: self-hosted
+    runs-on: [omen]
     steps:
       - name: check out repository
         uses: actions/checkout@v2
-
+        
+      - name: test
+        run: touch filetest
+        
       - name: deploys the project
         run: ansible-playbook site.yaml
 
   test:
-    runs-on: self-hosted
+    runs-on: [omen]
     needs: [build]
     steps:     
       - name: curl the loadbalancer for database output
