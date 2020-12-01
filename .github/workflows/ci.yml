@@ -19,11 +19,8 @@ jobs:
       - name: check out repository
         uses: actions/checkout@v2
         
-      - name: test
-        run: touch filetest
-        
       - name: deploys the project
-        run: ansible-playbook site.yaml
+        run: ansible-playbook --vault-password-file vault-pw site.yaml
 
   test:
     runs-on: [self-hosted, Linux, X64]
