@@ -1,0 +1,31 @@
+<?php
+//header("Content-Type:application/json");
+
+$mysqli = new mysqli("{{ db_green }}", "webserver", "{{ db_wb_pw }}", "sqltest");
+
+if (mysqli_connect_errno()) {
+  echo "Failed to connect to MySQL: " . mysqli_connect_error();
+  exit();
+}
+
+$statement = $mysqli->prepare("select * from users");
+
+$statement->execute(); // Execute the statement.
+$result = $statement->get_result(); // Binds the last executed statement as a result.
+
+$return_arr = array();
+
+while ($row = $result->fetch_assoc()) {
+    $row_array['id'] = $row['id'];
+    $row_array['firstname'] = $row['firstname'];
+    $row_array['lastname'] = $row['lastname'];
+    $row_array['age'] = $row['age'];
+
+    array_push($return_arr,$row_array);
+}
+
+echo json_encode($return_arr);
+
+$mysqli->close(); // finally, close the connection
+?>
+

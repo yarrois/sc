@@ -1,0 +1,93 @@
+---
+- name: setup database
+  hosts: databases
+  vars_files: 
+    - vars.yaml
+    - vault.yaml
+  become: yes
+
+  tasks:
+  - name: install packages
+    yum:
+      name: 
+        - mariadb-server
+        - python3-PyMySQL
+        - firewalld
+      state: latest
+
+  - name: start firewalld mariadb
+    systemd:
+      name: "{{ item }}"
+      state: started
+      enabled: yes
+    loop:
+      - firewalld
+      - mariadb
+
+  - name: firewalld config
+    firewalld:
+      service: mysql
+      permanent: yes
+      immediate: yes
+      state: enabled
+
+  - name: mariadb config
+    lineinfile:
+      path: /etc/my.cnf.d/mariadb-server.cnf
+      regexp: '^#bind-address'
+      line: 'bind-address=0.0.0.0'
+    notify: restart_mariadb
+
+  - name: mysql_root_password
+    mysql_user:
+      login_user: root
+      login_password: "{{ db_root_pw }}"
+      user: root
+      check_implicit_admin: true
+      password: "{{ db_root_pw }}"
+      host: localhost
+
+  - name: mysql users for webservers
+    mysql_user:
+      name: webserver
+      host: "{{ item }}"
+      password: "{{ db_wb_pw }}"
+      priv: '*.*:ALL'
+      state: present
+      login_user: root
+      login_password: "{{ db_root_pw }}"
+    loop:
+      - "{{ wb1_orange }}"
+      - "{{ wb2_orange }}"
+
+  - name: create db with name sqltest
+    mysql_db:
+      name: sqltest
+      state: present
+      login_user: root
+      login_password: "{{ db_root_pw }}"
+
+  - name: copy test database
+    copy:
+      src: users.sql
+      dest: /tmp
+
+  - name: import test table
+    mysql_db:
+      name: sqltest
+      state: import
+      target: /tmp/users.sql
+      login_user: root
+      login_password: "{{ db_root_pw }}"
+
+  - name: install security updates
+    yum: 
+      security: yes
+      state: latest
+
+  handlers:
+  - name: restart_mariadb
+    systemd:
+      name: mariadb
+      state: restarted
+      enabled: yes

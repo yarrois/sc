@@ -1,0 +1,8 @@
+frontend loadbalancer_in
+  bind {{ lb_red }}:80
+  default_backend webservers
+
+backend webservers
+  balance leastconn
+  server webserver1 {{ wb1_orange }}
+  server webserver2 {{ wb2_orange }}

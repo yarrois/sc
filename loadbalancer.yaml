@@ -1,0 +1,47 @@
+---
+- name: setup loadbalancer
+  hosts: loadbalancers
+  vars_files: 
+    - vars.yaml
+    - vault.yaml
+  become: yes
+
+  tasks:
+  - name: install packages
+    yum:
+      name: 
+        - haproxy
+        - firewalld
+      state: latest
+
+  - name: haproxy config
+    template:
+      src: haproxy.cfg.j2
+      dest: /etc/haproxy/haproxy.cfg
+    notify: restart_haproxy
+
+  - name: start firewalld
+    systemd:
+      name: firewalld
+      state: started
+      enabled: yes
+
+  - name: firewalld config
+    firewalld:
+      service: http
+      permanent: yes
+      immediate: yes
+      state: enabled
+
+  - name: install security updates
+    yum: 
+      security: yes
+      state: latest
+     
+  handlers: 
+  - name: restart_haproxy
+    systemd:
+      name: haproxy
+      state: restarted
+      enabled: yes
+

@@ -1,0 +1,134 @@
+---
+- name: setup hypervisor
+  hosts: localhost
+  vars_files: 
+    - vars.yaml
+    - vault.yaml
+  become: yes
+
+  tasks:
+  - name: install packages
+    yum:
+      name:
+        - qemu-kvm
+        - libvirt
+        - virt-manager
+        - openvswitch
+        - libguestfs
+        - python3-lxml
+        - firewalld
+      state: latest
+
+  - name: setup bridges
+    openvswitch_bridge:
+      bridge: "{{ item }}"
+      state: present
+    loop:
+      - br-mgmt
+      - br-red
+      - br-orange
+      - br-green
+
+  - name: setup interfaces
+    template:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+      mode: 0644
+    loop:
+      - { src: 'ifcfg-hv-mgmt.j2', dest: '/etc/sysconfig/network-scripts/ifcfg-hv-mgmt' }
+      - { src: 'ifcfg-hv-red.j2', dest: '/etc/sysconfig/network-scripts/ifcfg-hv-red' }
+      - { src: 'ifcfg-hv-orange.j2', dest: '/etc/sysconfig/network-scripts/ifcfg-hv-orange' }
+      - { src: 'ifcfg-hv-green.j2', dest: '/etc/sysconfig/network-scripts/ifcfg-hv-green' }
+    notify: restart_network
+
+  - name: firewalld - make sure firewalld is running
+    systemd:
+      name: firewalld
+      enabled: yes
+      state: started
+
+  - name: firewalld - public interface
+    firewalld:
+      zone: public
+      interface: "{{ hv_internet_interface }}"
+      permanent: yes
+      immediate: yes
+      state: enabled
+
+  - name: firewalld - internal interface
+    firewalld:
+      zone: internal
+      interface: "{{ item }}"
+      permanent: yes
+      immediate: yes
+      state: enabled
+    loop:
+      - hv-mgmt
+      - hv-red
+      - hv-orange
+      - hv-green
+
+  - name: firewalld - public
+    firewalld:
+      zone: public
+      masquerade: yes
+      permanent: yes
+      immediate: yes
+      state: enabled
+
+  - name: firewalld - internal target
+    command:
+      cmd: firewall-cmd --zone=internal --set-target=ACCEPT --permanent
+
+  - name: firewalld - internal target
+    command:
+      cmd: firewall-cmd --reload
+
+  - name: firewalld - internal
+    firewalld:
+      zone: internal
+      masquerade: yes
+      permanent: yes
+      immediate: yes
+      state: disabled
+
+  - name: define libvirt networks
+    virt_net:
+      command: define
+      name: "{{ item.name }}"
+      xml: '{{ lookup("template", item.src ) }}'
+    loop:
+      - { name: 'br-mgmt', src: 'files/br-mgmt-net.xml' }
+      - { name: 'br-red', src: 'files/br-red-net.xml' }
+      - { name: 'br-orange', src: 'files/br-orange-net.xml' }
+      - { name: 'br-green', src: 'files/br-green-net.xml' }
+
+  - name: libvirt network start
+    virt_net:
+      state: active
+      autostart: yes
+      name: "{{ item }}"
+    loop:
+      - br-mgmt
+      - br-red
+      - br-orange
+      - br-green
+
+  - name: update hosts file
+    lineinfile:
+      path: /etc/hosts
+      line: "{{ item }}"
+    loop:
+      - '{{ lb_mgmt }} loadbalancer'
+      - '{{ wb1_mgmt }} webserver1'
+      - '{{ wb2_mgmt }} webserver2'
+      - '{{ db_mgmt }} database'
+
+  handlers:
+  - name: restart_network 
+    service:
+      name: "{{ item }}"
+      state: restarted
+    loop:
+      - network
+      - openvswitch

@@ -1,0 +1,197 @@
+---
+- name: setup VMs
+  hosts: localhost
+  vars_files: 
+    - vars.yaml
+    - vault.yaml
+  become: yes
+
+  tasks:
+  - name: check if centos qcow2 exists
+    stat:
+      path: /var/lib/libvirt/images/centos.qcow2
+    register: stat_result
+
+  - name: download centos qcow2 and add user/key
+    block:
+      - name: download centos qcow2
+        get_url:
+          url: https://cloud.centos.org/centos/8/x86_64/images/CentOS-8-GenericCloud-8.2.2004-20200611.2.x86_64.qcow2
+          dest: /var/lib/libvirt/images/centos.qcow2
+          mode: '0755'
+      - name: add user and key
+        shell: |
+          # add automation user
+          export LIBGUESTFS_BACKEND=direct
+          virt-customize \
+            --run-command " \
+            useradd automation -p '\$6\$mTGuRPi8oG49eHvI\$2IwirhCw.YKoMWDPI4RjdiMt7S6i4o11Lox.HEE24l0KLdxkqUFBwgQBa1Rn2dHY9WzGzjg3TqsbpdJoqQAf8.' && \
+            echo 'automation ALL=(ALL) NOPASSWD: ALL' | sudo tee --append /etc/sudoers; \
+            mkdir /home/automation/.ssh/; \
+            chown automation:automation /home/automation/.ssh/; \
+            chmod 700 /home/automation/.ssh/; \
+            " \
+            -a /var/lib/libvirt/images/centos.qcow2 \
+            --memsize 2048 \
+            --selinux-relabel \
+            --edit '/usr/lib/systemd/system/selinux-autorelabel.service: $_ = "" if /StandardInput=tty/'
+          # add authorized_keys
+          virt-copy-in -a /var/lib/libvirt/images/centos.qcow2 files/authorized_keys /home/automation/.ssh/
+          # add resolv.conf
+          virt-copy-in -a /var/lib/libvirt/images/centos.qcow2 files/resolv.conf /etc/
+          # relabel selinux and set owner group
+          virt-customize \
+            --run-command " \
+            chown automation:automation /home/automation/.ssh/authorized_keys; \
+            chmod 700 /home/automation/.ssh/authorized_keys; \
+            " \
+            -a /var/lib/libvirt/images/centos.qcow2 \
+            --memsize 2048 \
+            --selinux-relabel \
+            --edit '/usr/lib/systemd/system/selinux-autorelabel.service: $_ = "" if /StandardInput=tty/'
+    when: stat_result.stat.exists
+
+  - name: list all vms
+    virt:
+      command: list_vms
+    register: all_vms
+
+  - name: show
+    debug: 
+      var: all_vms
+
+  - name: create loadbalancer vm
+    block:
+      - name: create directory for loadbalancer
+        file:
+          path: /var/lib/libvirt/images/loadbalancer
+          state: directory
+
+      - name: copy minimal qcow2
+        copy:
+          src: /var/lib/libvirt/images/centos.qcow2
+          dest: /var/lib/libvirt/images/loadbalancer/loadbalancer.qcow2
+
+      - name: network interfaces
+        template: src=ifcfg-eth0-lb.j2 dest=/var/lib/libvirt/images/loadbalancer/ifcfg-eth0
+      - template: src=ifcfg-eth1-lb.j2 dest=/var/lib/libvirt/images/loadbalancer/ifcfg-eth1
+      - template: src=route-eth1-lb.j2 dest=/var/lib/libvirt/images/loadbalancer/route-eth1
+
+      - name: copy in network interfaces and authorized_keys
+        shell: |
+          # copy in network interfaces
+          virt-copy-in -a /var/lib/libvirt/images/loadbalancer/loadbalancer.qcow2 /var/lib/libvirt/images/loadbalancer/ifcfg* /etc/sysconfig/network-scripts/
+          virt-copy-in -a /var/lib/libvirt/images/loadbalancer/loadbalancer.qcow2 /var/lib/libvirt/images/loadbalancer/route* /etc/sysconfig/network-scripts/
+          # relabel selinux
+          virt-customize \
+            -a /var/lib/libvirt/images/loadbalancer/loadbalancer.qcow2 \
+            --memsize 2048 \
+            --selinux-relabel \
+            --edit '/usr/lib/systemd/system/selinux-autorelabel.service: $_ = "" if /StandardInput=tty/'
+
+      - name: create vm
+        command:
+          cmd: virt-install --import --name=loadbalancer10 --vcpus=1 --memory=2048 --disk /var/lib/libvirt/images/loadbalancer/loadbalancer.qcow2 --os-variant=centos8 --network network:br-mgmt --network network:br-red --noautoconsole
+    when: "'loadbalancer10' not in all_vms['list_vms']"
+
+  - name: create webserver1 vm
+    block:
+      - name: create directory for webserver1
+        file:
+          path: /var/lib/libvirt/images/webserver1
+          state: directory
+
+      - name: copy minimal qcow2
+        copy:
+          src: /var/lib/libvirt/images/centos.qcow2
+          dest: /var/lib/libvirt/images/webserver1/webserver1.qcow2
+
+      - name: network interfaces
+        template: src=ifcfg-eth0-wb1.j2 dest=/var/lib/libvirt/images/webserver1/ifcfg-eth0
+      - template: src=ifcfg-eth1-wb1.j2 dest=/var/lib/libvirt/images/webserver1/ifcfg-eth1
+      - template: src=route-eth1-wb1.j2 dest=/var/lib/libvirt/images/webserver1/route-eth1
+
+      - name: copy in network interfaces and authorized_keys
+        shell: |
+          # copy in network interfaces
+          virt-copy-in -a /var/lib/libvirt/images/webserver1/webserver1.qcow2 /var/lib/libvirt/images/webserver1/ifcfg* /etc/sysconfig/network-scripts/
+          virt-copy-in -a /var/lib/libvirt/images/webserver1/webserver1.qcow2 /var/lib/libvirt/images/webserver1/route* /etc/sysconfig/network-scripts/
+          # relabel selinux
+          virt-customize \
+            -a /var/lib/libvirt/images/webserver1/webserver1.qcow2 \
+            --memsize 2048 \
+            --selinux-relabel \
+            --edit '/usr/lib/systemd/system/selinux-autorelabel.service: $_ = "" if /StandardInput=tty/'
+
+      - name: create vm
+        command:
+          cmd: virt-install --import --name=webserver10 --vcpus=1 --memory=2048 --disk /var/lib/libvirt/images/webserver1/webserver1.qcow2 --os-variant=centos8 --network network:br-mgmt --network network:br-orange --noautoconsole
+    when: "'webserver10' not in all_vms['list_vms']"
+
+  - name: create webserver2 vm
+    block:
+      - name: create directory for webserver2
+        file:
+          path: /var/lib/libvirt/images/webserver2
+          state: directory
+
+      - name: copy minimal qcow2
+        copy:
+          src: /var/lib/libvirt/images/centos.qcow2
+          dest: /var/lib/libvirt/images/webserver2/webserver2.qcow2
+
+      - name: network interfaces
+        template: src=ifcfg-eth0-wb2.j2 dest=/var/lib/libvirt/images/webserver2/ifcfg-eth0
+      - template: src=ifcfg-eth1-wb2.j2 dest=/var/lib/libvirt/images/webserver2/ifcfg-eth1
+      - template: src=route-eth1-wb2.j2 dest=/var/lib/libvirt/images/webserver2/route-eth1
+
+      - name: copy in network interfaces and authorized_keys
+        shell: |
+          # copy in network interfaces
+          virt-copy-in -a /var/lib/libvirt/images/webserver2/webserver2.qcow2 /var/lib/libvirt/images/webserver2/ifcfg* /etc/sysconfig/network-scripts/
+          virt-copy-in -a /var/lib/libvirt/images/webserver2/webserver2.qcow2 /var/lib/libvirt/images/webserver2/route* /etc/sysconfig/network-scripts/
+          # relabel selinux
+          virt-customize \
+            -a /var/lib/libvirt/images/webserver2/webserver2.qcow2 \
+            --memsize 2048 \
+            --selinux-relabel \
+            --edit '/usr/lib/systemd/system/selinux-autorelabel.service: $_ = "" if /StandardInput=tty/'
+
+      - name: create vm
+        command:
+          cmd: virt-install --import --name=webserver20 --vcpus=1 --memory=2048 --disk /var/lib/libvirt/images/webserver2/webserver2.qcow2 --os-variant=centos8 --network network:br-mgmt --network network:br-orange --noautoconsole
+    when: "'webserver20' not in all_vms['list_vms']"
+
+  - name: create database vm
+    block:
+      - name: create directory for database
+        file:
+          path: /var/lib/libvirt/images/database
+          state: directory
+
+      - name: copy minimal qcow2
+        copy:
+          src: /var/lib/libvirt/images/centos.qcow2
+          dest: /var/lib/libvirt/images/database/database.qcow2
+
+      - name: network interfaces
+        template: src=ifcfg-eth0-db.j2 dest=/var/lib/libvirt/images/database/ifcfg-eth0
+      - template: src=ifcfg-eth1-db.j2 dest=/var/lib/libvirt/images/database/ifcfg-eth1
+      - template: src=route-eth1-db.j2 dest=/var/lib/libvirt/images/database/route-eth1
+
+      - name: copy in network interfaces and authorized_keys
+        shell: |
+          # copy in network interfaces
+          virt-copy-in -a /var/lib/libvirt/images/database/database.qcow2 /var/lib/libvirt/images/database/ifcfg* /etc/sysconfig/network-scripts/
+          virt-copy-in -a /var/lib/libvirt/images/database/database.qcow2 /var/lib/libvirt/images/database/route* /etc/sysconfig/network-scripts/
+          # relabel selinux
+          virt-customize \
+            -a /var/lib/libvirt/images/database/database.qcow2 \
+            --memsize 2048 \
+            --selinux-relabel \
+            --edit '/usr/lib/systemd/system/selinux-autorelabel.service: $_ = "" if /StandardInput=tty/'
+
+      - name: create vm
+        command:
+          cmd: virt-install --import --name=database10 --vcpus=1 --memory=2048 --disk /var/lib/libvirt/images/database/database.qcow2 --os-variant=centos8 --network network:br-mgmt --network network:br-green --noautoconsole
+    when: "'database10' not in all_vms['list_vms']"

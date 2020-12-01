@@ -1,0 +1,37 @@
+# hypervisor 
+hv_mgmt: 10.0.100.100
+hv_red: 10.0.1.100
+hv_orange: 10.0.2.100
+hv_green: 10.0.3.100
+hv_internet_interface: enp34s0
+
+# networks
+mgmt_network: 10.0.100.0/24
+red_network: 10.0.1.0/24
+orange_network: 10.0.2.0/24
+green_network: 10.0.3.0/24
+
+# network netmasks
+mgmt_netmask: 255.255.255.0
+red_netmask: 255.255.255.0
+orange_netmask: 255.255.255.0
+green_netmask: 255.255.255.0
+
+# loadbalancer ip addresses
+lb_mgmt: 10.0.100.10
+lb_red: 10.0.1.10
+lb_orange: 10.0.2.10
+
+# webserver1 ip addresses
+wb1_mgmt: 10.0.100.20
+wb1_orange: 10.0.2.20
+wb1_green: 10.0.3.20
+
+# webserver2 ip addresses
+wb2_mgmt: 10.0.100.30
+wb2_orange: 10.0.2.30
+wb2_green: 10.0.3.30
+
+# database ip addresses
+db_mgmt: 10.0.100.40
+db_green: 10.0.3.40

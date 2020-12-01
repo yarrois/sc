@@ -1,0 +1,6 @@
+<network>
+  <name>br-mgmt</name>
+  <forward mode='bridge'/>
+  <bridge name='br-mgmt'/>
+  <virtualport type='openvswitch'/>
+</network>

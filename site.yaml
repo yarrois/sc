@@ -1,0 +1,6 @@
+---
+- import_playbook: hypervisor.yaml
+- import_playbook: vms.yaml
+- import_playbook: loadbalancer.yaml
+- import_playbook: webserver.yaml
+- import_playbook: database.yaml

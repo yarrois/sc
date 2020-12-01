@@ -1,0 +1,6 @@
+<network>
+  <name>br-red</name>
+  <forward mode='bridge'/>
+  <bridge name='br-red'/>
+  <virtualport type='openvswitch'/>
+</network>

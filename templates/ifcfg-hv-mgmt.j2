@@ -1,0 +1,10 @@
+TYPE=OVSIntPort
+DEVICETYPE=ovs
+DEVICE=hv-mgmt
+BOOTPROTO=static
+NM_CONTROLLED=no
+ONBOOT=yes
+NAME=hv-mgmt
+OVS_BRIDGE=br-mgmt
+IPADDR={{ hv_mgmt }}
+NETMASK={{ mgmt_netmask }}

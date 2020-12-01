@@ -1,0 +1,56 @@
+---
+- name: setup webserver
+  hosts: webservers
+  vars_files: 
+    - vars.yaml
+    - vault.yaml
+  become: yes
+
+  tasks:
+  - name: install packages
+    yum:
+      name: 
+        - httpd
+        - php
+        - php-mysqlnd
+        - php-json
+        - firewalld
+      state: latest
+
+  - name: httpd config
+    template:
+      src: api.php.j2
+      dest: /var/www/html/api.php
+    notify: restart_httpd
+
+  - name: selinux use modules later
+    shell: |
+      semanage fcontext -a -t httpd_sys_script_exec_t '/var/www/html(/.*)?'
+      restorecon -R -v /var/www/html/
+      setsebool -P httpd_can_network_connect 1
+
+  - name: start firewalld
+    systemd:
+      name: firewalld
+      state: started
+      enabled: yes
+
+  - name: firewalld config
+    firewalld:
+      service: http
+      permanent: yes
+      immediate: yes
+      state: enabled
+
+  - name: install security updates
+    yum: 
+      security: yes
+      state: latest
+ 
+  handlers: 
+  - name: restart_httpd
+    systemd:
+      name: httpd
+      state: restarted
+      enabled: yes
+
