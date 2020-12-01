@@ -14,7 +14,6 @@ on:
 jobs:
 
   build:
-    runs-on: centos-latest
     steps:
       - name: check out repository
         uses: actions/checkout@v2
@@ -24,7 +23,6 @@ jobs:
 
   test:
     needs: [build]
-    runs-on: centos-latest
     steps:     
       - name: curl the loadbalancer for database output
         run: curl http://ucpe.swisscom.com/api.php >> results
