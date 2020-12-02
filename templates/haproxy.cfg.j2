@@ -3,6 +3,6 @@ frontend loadbalancer_in
   default_backend webservers
 
 backend webservers
-  balance leastconn
+  balance roundrobin
   server webserver1 {{ wb1_orange }}
   server webserver2 {{ wb2_orange }}
